@@ -1,0 +1,36 @@
+/* Purpose: Variables globales et reset */
+:root {
+    --primary: #1D9E75;
+    --primary-dark: #157a5b;
+    --danger: #d9534f;
+    --warning: #f0ad4e;
+    --dark: #333;
+    --gray-light: #f4f7f6;
+    --border: #ddd;
+    --white: #ffffff;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: var(--gray-light);
+    color: var(--dark);
+    margin: 0;
+    line-height: 1.5;
+}
+
+.container { width: 100%; max-width: 1000px; margin: 0 auto; padding: 1rem; }
+
+.nav-bottom {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--white);
+    display: flex; justify-content: space-around;
+    border-top: 1px solid var(--border);
+    padding: 10px 0; z-index: 100;
+}
+
+.nav-item { text-decoration: none; color: #666; font-size: 0.75rem; text-align: center; }
+.nav-item.active { color: var(--primary); font-weight: bold; }
+
+.hidden { display: none !important; }

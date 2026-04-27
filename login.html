@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockPilot — Connexion</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <style>
+        body { background: #f4f7f6; margin: 0; padding: 0; }
+        .auth-container { max-width: 400px; margin: 2rem auto; padding: 1.5rem; }
+        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .logo { text-align: center; color: var(--primary); font-weight: bold; font-size: 1.8rem; margin-bottom: 1.5rem; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: #666; }
+        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 1rem; }
+        .btn-main { width: 100%; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 4px; font-weight: bold; cursor: pointer; min-height: 44px; margin-top: 1rem; }
+        .error-msg { color: #d9534f; font-size: 0.85rem; margin-top: 0.5rem; display: none; }
+        .toggle-link { text-align: center; margin-top: 1.5rem; font-size: 0.9rem; }
+        .toggle-link a { color: var(--primary); text-decoration: none; font-weight: bold; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="auth-container">
+    <div class="logo">STOCKPILOT</div>
+    
+    <div class="card" id="authCard">
+        <h2 id="authTitle" style="margin-top:0">Connexion</h2>
+        
+        <form id="authForm">
+            <div class="form-group hidden" id="groupShop">
+                <label>Nom de votre boutique / Commerce</label>
+                <input type="text" id="shopName" placeholder="ex: Boutique Dantokpa">
+            </div>
+            <div class="form-group hidden" id="groupName">
+                <label>Votre Nom</label>
+                <input type="text" id="userName" placeholder="ex: Koffi Kouassi">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="email" required placeholder="votre@email.com">
+            </div>
+            <div class="form-group">
+                <label>Mot de passe</label>
+                <input type="password" id="password" required placeholder="••••••••">
+            </div>
+            
+            <p id="errorMessage" class="error-msg"></p>
+            
+            <button type="submit" class="btn-main" id="btnSubmit">Se connecter</button>
+        </form>
+
+        <div class="toggle-link">
+            <span id="toggleText">Pas encore de compte ?</span>
+            <a href="#" id="toggleAuth">Créer mon compte</a>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { loginUser, registerUser } from './js/auth.js';
+
+    let isLogin = true;
+    const authForm = document.getElementById('authForm');
+    const toggleAuth = document.getElementById('toggleAuth');
+    const authTitle = document.getElementById('authTitle');
+    const btnSubmit = document.getElementById('btnSubmit');
+    const toggleText = document.getElementById('toggleText');
+    const errorMsg = document.getElementById('errorMessage');
+
+    toggleAuth.addEventListener('click', (e) => {
+        e.preventDefault();
+        isLogin = !isLogin;
+        document.getElementById('groupShop').classList.toggle('hidden', isLogin);
+        document.getElementById('groupName').classList.toggle('hidden', isLogin);
+        authTitle.innerText = isLogin ? "Connexion" : "Inscription";
+        btnSubmit.innerText = isLogin ? "Se connecter" : "Créer mon compte";
+        toggleText.innerText = isLogin ? "Pas encore de compte ?" : "Déjà un compte ?";
+        toggleAuth.innerText = isLogin ? "Créer mon compte" : "Se connecter";
+        errorMsg.style.display = "none";
+    });
+
+    authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        btnSubmit.disabled = true;
+        btnSubmit.innerText = "Chargement...";
+        errorMsg.style.display = "none";
+
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        try {
+            if (isLogin) {
+                await loginUser(email, password);
+            } else {
+                const shopName = document.getElementById('shopName').value;
+                const name = document.getElementById('userName').value;
+                if(!shopName || !name) throw new Error("Veuillez remplir tous les champs");
+                await registerUser(email, password, shopName, name);
+            }
+        } catch (error) {
+            errorMsg.innerText = "Erreur : " + error;
+            errorMsg.style.display = "block";
+            btnSubmit.disabled = false;
+            btnSubmit.innerText = isLogin ? "Se connecter" : "Créer mon compte";
+        }
+    });
+</script>
+
+</body>
+</html>
