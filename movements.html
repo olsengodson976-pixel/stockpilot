@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockPilot — Flux de Stock</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <style>
+        .mov-card { background: white; padding: 12px 15px; border-radius: 10px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .mov-icon { width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; margin-right: 12px; flex-shrink: 0; }
+        .bg-in { background: #e6f4ea; color: #1e8e3e; }
+        .bg-out { background: #fce8e6; color: #d93025; }
+        .bg-adj { background: #fef7e0; color: #f29900; }
+        
+        .mov-details { flex: 1; }
+        .mov-details b { display: block; font-size: 0.95rem; }
+        .mov-details small { color: #888; font-size: 0.75rem; }
+        
+        .mov-qty { text-align: right; font-weight: bold; font-size: 1rem; }
+        
+        .fab { position: fixed; bottom: 85px; right: 20px; width: 56px; height: 56px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: none; cursor: pointer; z-index: 100; }
+        
+        .type-selector { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+        .type-btn { padding: 10px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 0.8rem; font-weight: bold; text-align: center; }
+        .type-btn.active[data-type="in"] { background: #1e8e3e; color: white; border-color: #1e8e3e; }
+        .type-btn.active[data-type="out"] { background: #d93025; color: white; border-color: #d93025; }
+        .type-btn.active[data-type="adjustment"] { background: #f29900; color: white; border-color: #f29900; }
+        
+        input, select, textarea { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; font-family: inherit; box-sizing: border-box; }
+        label { font-size: 0.8rem; font-weight: bold; color: #555; }
+    </style>
+</head>
+<body style="padding-bottom: 100px; background: #f8fafc;">
+
+<div class="container">
+    <header style="padding: 10px 0;">
+        <h1 style="margin:0; font-size: 1.5rem;">Flux de Stock</h1>
+        <p style="margin:0; color: #666; font-size: 0.85rem;">Historique des entrées et sorties</p>
+    </header>
+
+    <div id="movementsList" style="margin-top: 10px;">
+        <div style="text-align:center; padding: 50px 0; color: #888;">Chargement des flux...</div>
+    </div>
+</div>
+
+<button class="fab" id="btnOpenMov">+</button>
+
+<div id="movementModal" class="modal hidden">
+    <div class="modal-content">
+        <h2 style="margin-top:0;">Nouveau Flux</h2>
+        
+        <form id="movementForm">
+            <label>Type d'opération</label>
+            <div class="type-selector" style="margin-top: 8px;">
+                <div class="type-btn active" data-type="out">📤 SORTIE</div>
+                <div class="type-btn" data-type="in">📥 ENTRÉE</div>
+                <div class="type-btn" data-type="adjustment">⚙️ AJUST.</div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label>Produit concerné</label>
+                <select id="prodSelect" required>
+                    <option value="">Sélectionner un produit...</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label>Quantité</label>
+                <input type="number" id="movQty" required min="1" placeholder="0">
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label>Note / Commentaire</label>
+                <textarea id="movNote" rows="2" placeholder="ex: Vente client, Arrivage fournisseur..."></textarea>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="button" class="btn btn-outline btn-block" id="btnCancelMov" style="border:1px solid #ddd; color:#666;">Annuler</button>
+                <button type="submit" class="btn btn-primary btn-block" id="btnSubmitMov">Valider</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<nav class="nav-bottom">
+    <a href="dashboard.html" class="nav-item">🏠<br>Home</a>
+    <a href="products.html" class="nav-item">📦<br>Stocks</a>
+    <a href="movements.html" class="nav-item active">🔄<br>Flux</a>
+    <a href="reports.html" class="nav-item">📈<br>Rapports</a>
+</nav>
+
+<script type="module">
+    import { auth, db } from './js/firebase-config.js';
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { collection, query, where, getDocs, addDoc, doc, updateDoc, increment, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const movList = document.getElementById('movementsList');
+    const movModal = document.getElementById('movementModal');
+    const movForm = document.getElementById('movementForm');
+    const prodSelect = document.getElementById('prodSelect');
+    let selectedType = "out";
+
+    onAuthStateChanged(auth, (user) => {
+        if (!user) { window.location.href = "login.html"; }
+        else { 
+            loadMovements();
+            loadProductsForSelect();
+        }
+    });
+
+    async function loadMovements() {
+        try {
+            const q = query(
+                collection(db, "movements"), 
+                where("uid", "==", auth.currentUser.uid), 
+                orderBy("date", "desc"),
+                limit(50)
+            );
+            const snap = await getDocs(q);
+            
+            if (snap.empty) {
+                movList.innerHTML = `<div style="text-align:center; padding:50px; color:#888;">Aucun mouvement enregistré.<br>Cliquez sur <b>+</b> pour ajouter.</div>`;
+                return;
+            }
+
+            movList.innerHTML = snap.docs.map(d => {
+                const m = d.data();
+                const date = m.date?.toDate().toLocaleDateString('fr-FR', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
+                let icon = "📤", colorClass = "bg-out";
+                if (m.type === "in") { icon = "📥"; colorClass = "bg-in"; }
+                if (m.type === "adjustment") { icon = "⚙️"; colorClass = "bg-adj"; }
+
+                return `
+                    <div class="mov-card">
+                        <div class="mov-icon ${colorClass}">${icon}</div>
+                        <div class="mov-details">
+                            <b>${m.productName}</b>
+                            <small>${date || ''} · ${m.note || 'Sans note'}</small>
+                        </div>
+                        <div class="mov-qty" style="color: ${m.quantity > 0 ? '#1e8e3e' : '#d93025'}">
+                            ${m.quantity > 0 ? '+' : ''}${m.quantity}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (err) {
+            movList.innerHTML = `<div style="text-align:center; padding:30px; color:#d9534f;">Erreur de chargement. Vérifiez votre connexion.</div>`;
+        }
+    }
+
+    async function loadProductsForSelect() {
+        try {
+            const q = query(collection(db, "products"), where("uid", "==", auth.currentUser.uid), orderBy("name", "asc"));
+            const snap = await getDocs(q);
+            prodSelect.innerHTML = '<option value="">Sélectionner un produit...</option>' + 
+                snap.docs.map(d => `<option value="${d.id}">${d.data().name} (Stock: ${d.data().quantity})</option>`).join('');
+        } catch (err) {
+            prodSelect.innerHTML = '<option value="">Erreur chargement produits</option>';
+        }
+    }
+
+    document.querySelectorAll('.type-btn').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedType = btn.dataset.type;
+        };
+    });
+
+    document.getElementById('btnOpenMov').onclick = () => {
+        movForm.reset();
+        movModal.classList.remove('hidden');
+    };
+    document.getElementById('btnCancelMov').onclick = () => movModal.classList.add('hidden');
+
+    movForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const btnSubmit = document.getElementById('btnSubmitMov');
+        btnSubmit.disabled = true;
+        btnSubmit.innerText = "Validation...";
+
+        const prodId = prodSelect.value;
+        if (!prodId) { alert("Veuillez sélectionner un produit."); btnSubmit.disabled = false; btnSubmit.innerText = "Valider"; return; }
+
+        const prodName = prodSelect.options[prodSelect.selectedIndex].text.split(' (Stock:')[0];
+        const qtyInput = Number(document.getElementById('movQty').value);
+        const note = document.getElementById('movNote').value;
+        const finalQty = selectedType === "out" ? -Math.abs(qtyInput) : Math.abs(qtyInput);
+
+        try {
+            await addDoc(collection(db, "movements"), {
+                uid: auth.currentUser.uid,
+                productId: prodId,
+                productName: prodName,
+                type: selectedType,
+                quantity: finalQty,
+                note: note,
+                date: serverTimestamp()
+            });
+
+            await updateDoc(doc(db, "products", prodId), {
+                quantity: increment(finalQty),
+                updatedAt: serverTimestamp()
+            });
+
+            movForm.reset();
+            movModal.classList.add('hidden');
+            loadMovements();
+            loadProductsForSelect();
+        } catch (err) {
+            alert("Erreur : " + err.message);
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.innerText = "Valider";
+        }
+    };
+</script>
+
+</body>
+</html>
